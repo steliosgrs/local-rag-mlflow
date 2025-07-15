@@ -10,12 +10,14 @@ This application is designed to handle queries using a language model and a vect
 ## Setup
 
 1. **Clone the repository**:
+
 ```bash
 $ git clone https://github.com/firstpersoncode/local-rag.git
 $ cd local-rag
 ```
 
 2. **Create a virtual environment**:
+
 ```bash
 $ python -m venv venv
 $ source venv/bin/activate
@@ -25,42 +27,52 @@ $ source venv/bin/activate
 ```
 
 3. **Install dependencies**:
+
 ```bash
 $ pip install -r requirements.txt
 ```
 
 4. **Run Ollama**:
-Ensure Ollama is installed and running locally. Refer to the [Ollama documentation](https://github.com/ollama/ollama/blob/main/README.md#quickstart) for setup instructions.
+   Ensure Ollama is installed and running locally. Refer to the [Ollama documentation](https://github.com/ollama/ollama/blob/main/README.md#quickstart) for setup instructions.
+   [Models List](https://github.com/ollama/ollama/blob/main/README.md#model-library)
 
 - Start Ollama
+
 ```bash
 $ ollama serve
 ```
+
 - Install llm model
+
 ```bash
-$ ollama pull mistral
+$ ollama pull deepseek-r1
 ```
+
 - Install text embedding model
+
 ```bash
 $ ollama pull nomic-embed-text
 ```
 
 5. **Set up environment variables**:
-Edit the .env.sample file and save it as .env
+   Edit the .env.sample file and save it as .env
+
 ```bash
 TEMP_FOLDER = './_temp'
 CHROMA_PATH = "chroma"
 COLLECTION_NAME = 'local-rag'
-LLM_MODEL = 'mistral' # replace with the model you want to use.
+LLM_MODEL = 'deepseek-r1' # replace with the model you want to use.
 TEXT_EMBEDDING_MODEL = 'nomic-embed-text'
 ```
 
 ## Running the App
+
 ```bash
 $ python app.py
 ```
 
 Load the documents into the database.
+
 ```
 $ curl --request POST \
   --url http://localhost:8080/embed \
@@ -74,6 +86,7 @@ $ curl --request POST \
 ```
 
 Ask questions about the documents.
+
 ```
 $ curl --request POST \
   --url http://localhost:8080/query \
