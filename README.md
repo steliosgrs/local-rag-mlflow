@@ -54,7 +54,13 @@ $ ollama pull deepseek-r1
 $ ollama pull nomic-embed-text
 ```
 
-5. **Set up environment variables**:
+5. **Start an MLFlow Server**:
+
+```bash
+mlflow server --host 127.0.0.1 --port 5000
+```
+
+6. **Set up environment variables**:
    Edit the .env.sample file and save it as .env
 
 ```bash
@@ -68,7 +74,7 @@ TEXT_EMBEDDING_MODEL = 'nomic-embed-text'
 ## Running the App
 
 ```bash
-$ python app.py
+python app.py
 ```
 
 Load the documents into the database.

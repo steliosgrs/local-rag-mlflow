@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 import mlflow
+from models import OllamaJudgeModel
 from langchain_community.chat_models import ChatOllama
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -19,6 +20,10 @@ from mlflow.metrics.genai import EvaluationExample
 LLM_MODEL = os.getenv("LLM_MODEL", "mistral")
 LLM_AS_JUDGE_MODEL = os.getenv("LLM_AS_JUDGE_MODEL", "gemma3")
 LLM_AS_JUDGE_URI = os.getenv("LLM_AS_JUDGE_URI", "http://localhost:11434")
+from mlflow.deployments import set_deployments_target
+
+set_deployments_target("http://localhost:11434")  # Your Ollama server
+
 
 # Create good and bad examples for faithfulness evaluation based on ΟΠΕΚΕΠΕ document
 faithfulness_examples = [
@@ -187,8 +192,34 @@ def query(input):
             #     except Exception as e:
             #         # logger.error("Failed to calculate %s: %s", metric_name, str(e))
             #         results[metric_name] = None
-            judge_llm = ChatOllama(model=LLM_AS_JUDGE_MODEL)
+            # judge_llm = ChatOllama(model=LLM_AS_JUDGE_MODEL)
+            # model_info = mlflow.pyfunc.log_model(
+            #     artifact_path="ollama_judge",
+            #     python_model=judge_llm,
+            # )
+            eval_data = pd.DataFrame(
+                {
+                    "predictions": [response],
+                    "targets": [reference_text],
+                    "inputs": [input],  # Add the original question
+                    "context": [retriever],  # Add the retrieved documents/context
+                }
+            )
 
+            judge_model = OllamaJudgeModel(LLM_AS_JUDGE_MODEL)
+            model_info = mlflow.pyfunc.log_model(
+                name="ollama_judge",
+                python_model=judge_model,
+            )
+            # pip_requirements=[
+            #     "requests",
+            #     "pandas"
+            # ]
+            # )
+
+            print(f"Logged Ollama judge model: {model_info.model_uri}")
+            # return model_info.model_uri
+            loaded_model = mlflow.pyfunc.load_model(model_info.model_uri)
             llm_as_judge_metrics = {
                 # "retrieval_precision": answer_correctness(),
                 # "answer_correctness": answer_correctness(
@@ -204,7 +235,10 @@ def query(input):
                 #     proxy_url=LLM_AS_JUDGE_URI,
                 # ),
                 "faithfulness": faithfulness(
-                    model=LLM_AS_JUDGE_MODEL,  # Using your local Ollama Gemma model
+                    # model=loaded_model,  # Using your local Ollama Gemma model
+                    # model=f"ollama://{LLM_AS_JUDGE_MODEL}",  # Using your local Ollama Gemma model
+                    # model=model_info.model_uri,  # Using your local Ollama Gemma model
+                    model=f"endpoints://{model_info.model_uri}",  # Using your local Ollama Gemma model
                     examples=faithfulness_examples,
                     # proxy_url=LLM_AS_JUDGE_URI,
                 )
@@ -215,7 +249,7 @@ def query(input):
                     score = _calculate_metric_score(
                         metric_func,
                         eval_data,
-                        model=judge_llm,
+                        model_uri=model_info.model_uri,
                     )
                     print(f"{metric_name} score: {score}")
                     results[metric_name] = score
@@ -253,7 +287,9 @@ def query(input):
     return None
 
 
-def _calculate_metric_score(metric_func, eval_data: pd.DataFrame, model=None) -> float:
+def _calculate_metric_score(
+    metric_func, eval_data: pd.DataFrame, model_uri=None
+) -> float:
     """
     Calculate the score for a specific metric.
 
@@ -288,16 +324,27 @@ def _calculate_metric_score(metric_func, eval_data: pd.DataFrame, model=None) ->
     #         },
     #     )
     eval_results = mlflow.evaluate(
-        model=model,
+        model_uri,
         data=eval_data,
         targets="targets",
         predictions="predictions",
         extra_metrics=[metric_func],
         evaluator_config={
-            "col_mapping": {"predictions": "predictions", "targets": "targets"}
+            "col_mapping": {
+                "predictions": "predictions",
+                "targets": "targets",
+                "inputs": "inputs",
+                "context": "context",
+            }
         },
     )
-    print(f"eval_results: {eval_results}")
+    # print(f"eval_results: {eval_results}")
+    print(
+        f"See per-data evaluation results below: \n{eval_results.tables['eval_results_table']}"
+    )
+    mlflow.log_table(
+        eval_results.tables["eval_results_table"], "evaluation_results.json"
+    )
     # Extract the metric score from results
     metric_name = metric_func.name
     return eval_results.metrics[metric_name]
